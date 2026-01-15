@@ -1,0 +1,24 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/teamtasks
+    username: teamtasks
+    password: teamtasks
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+    open-in-view: false
+  flyway:
+    enabled: true
+
+jwt:
+  secret: "teamtasks-secret-key-CHANGE-ME-teamtasks-secret-key-CHANGE-ME"
+  access-token-expiration: 7200000     # 15 min
+  refresh-token-expiration: 604800000  # 7 dias
+
+springdoc:
+  swagger-ui:
+    path: /swagger
