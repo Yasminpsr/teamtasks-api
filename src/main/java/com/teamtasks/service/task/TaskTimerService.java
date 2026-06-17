@@ -4,6 +4,7 @@ import com.teamtasks.domain.task.Task;
 import com.teamtasks.domain.task.TaskTimeEntry;
 import com.teamtasks.domain.user.User;
 import com.teamtasks.dto.task.TaskTimeSummaryResponse;
+import com.teamtasks.dto.task.TaskTimeDailySummaryResponse;
 import com.teamtasks.exception.BadRequestException;
 import com.teamtasks.exception.ForbiddenException;
 import com.teamtasks.exception.NotFoundException;
@@ -16,6 +17,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.sql.Date;
+import java.time.LocalDate;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -48,13 +52,20 @@ public class TaskTimerService {
         }
     }
 
+    private TaskTimeEntry getRunningEntryOrThrow(UUID taskId) {
+        return timeEntryRepository.findFirstByTask_IdAndEndedAtIsNull(taskId)
+                .orElseThrow(() -> new BadRequestException("Nenhum timer rodando"));
+    }
+
     public void start(UUID orgId, UUID taskId, UUID actorId) {
         requireMember(orgId, actorId);
         Task task = getTaskOrThrow(orgId, taskId);
         requireAssignee(task, actorId);
 
         timeEntryRepository.findFirstByTask_IdAndEndedAtIsNull(taskId)
-                .ifPresent(e -> { throw new BadRequestException("Timer já está rodando"); });
+                .ifPresent(e -> {
+                    throw new BadRequestException("Timer já está rodando");
+                });
 
         User actor = userRepository.findById(actorId)
                 .orElseThrow(() -> new NotFoundException("Usuário não encontrado"));
@@ -73,15 +84,24 @@ public class TaskTimerService {
         Task task = getTaskOrThrow(orgId, taskId);
         requireAssignee(task, actorId);
 
-        TaskTimeEntry running = timeEntryRepository.findFirstByTask_IdAndEndedAtIsNull(taskId)
-                .orElseThrow(() -> new BadRequestException("Nenhum timer rodando para pausar"));
-
+        TaskTimeEntry running = getRunningEntryOrThrow(taskId);
         running.setEndedAt(Instant.now());
         timeEntryRepository.save(running);
     }
 
     public void stop(UUID orgId, UUID taskId, UUID actorId) {
-        pause(orgId, taskId, actorId);
+        requireMember(orgId, actorId);
+        Task task = getTaskOrThrow(orgId, taskId);
+        requireAssignee(task, actorId);
+
+        TaskTimeEntry running = getRunningEntryOrThrow(taskId);
+        running.setEndedAt(Instant.now());
+        timeEntryRepository.save(running);
+
+        // No modelo atual, stop persiste igual ao pause.
+        // A diferença de comportamento fica no front:
+        // - pause = mantém o tempo visível
+        // - stop = salva e zera a UI
     }
 
     public TaskTimeSummaryResponse summary(UUID orgId, UUID taskId, UUID actorId) {
@@ -98,5 +118,25 @@ public class TaskTimerService {
                 totalSeconds / 3600.0,
                 running
         );
+    }
+
+    public List<TaskTimeDailySummaryResponse> dailySummary(UUID orgId, UUID taskId, UUID actorId) {
+        requireMember(orgId, actorId);
+        getTaskOrThrow(orgId, taskId);
+
+        return timeEntryRepository.sumTrackedSecondsByDay(taskId)
+                .stream()
+                .map(row -> {
+                    LocalDate date = ((Date) row[0]).toLocalDate();
+                    long totalSeconds = ((Number) row[1]).longValue();
+
+                    return new TaskTimeDailySummaryResponse(
+                            date,
+                            totalSeconds,
+                            totalSeconds / 60,
+                            totalSeconds / 3600.0
+                    );
+                })
+                .toList();
     }
 }

@@ -4,7 +4,8 @@ import com.teamtasks.dto.task.TaskTimeSummaryResponse;
 import com.teamtasks.service.task.TaskTimerService;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
+import com.teamtasks.dto.task.TaskTimeDailySummaryResponse;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -36,8 +37,22 @@ public class TaskTimerController {
     }
 
     @GetMapping("/summary")
-    public TaskTimeSummaryResponse summary(@PathVariable UUID orgId, @PathVariable UUID taskId, Authentication auth) {
+    public TaskTimeSummaryResponse summary(
+            @PathVariable UUID orgId,
+            @PathVariable UUID taskId,
+            Authentication auth
+    ) {
         UUID actorId = UUID.fromString((String) auth.getPrincipal());
         return timerService.summary(orgId, taskId, actorId);
+    }
+
+    @GetMapping("/summary/daily")
+    public List<TaskTimeDailySummaryResponse> dailySummary(
+            @PathVariable UUID orgId,
+            @PathVariable UUID taskId,
+            Authentication auth
+    ) {
+        UUID actorId = UUID.fromString((String) auth.getPrincipal());
+        return timerService.dailySummary(orgId, taskId, actorId);
     }
 }
